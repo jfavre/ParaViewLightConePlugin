@@ -119,12 +119,12 @@ protected:
   // Internal Variables
 
   unsigned int Npart[6];
+  unsigned int Nall[6];
   double Massarr[6];
   double Time;
   double Redshift;
   int FlagSfr;
   int FlagFeddback;
-  unsigned int Nall[6];
   int FlagCooling;
   int NumFiles;
   double BoxSize;
@@ -146,6 +146,7 @@ protected:
   int           UpdateNumPieces;
   bool          PartTypes[6];
   int           NumPart_Total[6];
+  bool          DistributedSnapshot;
   typedef std::vector<std::string>  stringlist;
   std::map<std::string, stringlist> FieldArrays;
 

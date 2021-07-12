@@ -46,6 +46,7 @@ vtkStandardNewMacro(vtkLightConeReader);
 vtkLightConeReader::vtkLightConeReader()
 {
   this->SetNumberOfInputPorts(0);
+  this->DistributedSnapshot      = true;
   this->FileName                 = nullptr;
   this->fp                       = nullptr;
   this->TimeStep                 = 0;
@@ -68,7 +69,6 @@ vtkLightConeReader::vtkLightConeReader()
     {"PartType4", {"Density"} }
 #endif
   };
-  std::cerr << "constructor..." << std::endl;
 #ifdef PARAVIEW_USE_MPI
   this->Controller = NULL;
   this->SetController(vtkMultiProcessController::GetGlobalController());
@@ -112,7 +112,6 @@ int vtkLightConeReader::OpenFile()
     }
   if(!this->fp)
     {
-    std::cerr << "opening " << this->FileName << std::endl;
     this->fp = fopen(this->FileName, "r");
     fseek(this->fp, 0L, SEEK_END);
     long TotalSize = ftell(fp);
@@ -146,8 +145,8 @@ int vtkLightConeReader::OpenFile()
         return 0;
 
     this->PrintHeader();
-    std::cout << "\nSize on disk   " << TotalSize << std::endl;
-    std::cout << "Estimated Size " << (4+256+4) + (4+this->Npart[1]*12L+4) + (4+this->Npart[1]*12L+4) + (4+this->Npart[1]*8L+4) << "\n" <<std::endl;
+    //std::cout << "\nSize on disk   " << TotalSize << std::endl;
+    //std::cout << "Estimated Size " << (4+256+4) + (4+this->Npart[1]*12L+4) + (4+this->Npart[1]*12L+4) + (4+this->Npart[1]*8L+4) << "\n" <<std::endl;
     }
 
   return 1;
@@ -157,7 +156,9 @@ int vtkLightConeReader::OpenFile()
 void vtkLightConeReader::PrintHeader()
 {
   int i;
-  std::cout << "header file: "          << this->FileName << std::endl;
+  std::cout << "header file: "          << this->FileName << ": ";
+  std::cout << this->Npart[1] << ", " << this->Nall[1] << std::endl;
+  /*
     
   std::cout << "this->Npart = ";
   for(i=0; i<6;i++)
@@ -194,6 +195,7 @@ void vtkLightConeReader::PrintHeader()
   std::cout << std::endl;
 
   std::cout << "this->Flag_entr_ics = " << this->Flag_entr_ics << std::endl;
+  */
 }
 
 //----------------------------------------------------------------------------
@@ -221,7 +223,6 @@ int vtkLightConeReader::RequestInformation(
       {
       if(this->Nall[i])
         this->PartTypes[i] = true;
-      std::cerr << "this->Nall["<< i << "] = " << this->Nall[i] << endl;
       }
     this->PointDataArraySelection->AddArray("velocity");
     this->PointDataArraySelection->AddArray("id");
@@ -348,11 +349,13 @@ int vtkLightConeReader::RequestData(
   fname << "/scratch/snx3000/jfavre/out." << this->UpdatePiece << ".txt" << ends;
   std::ofstream errs;
   errs.open(fname.str().c_str(), ios::app);
+/*
   errs << "piece " << this->UpdatePiece << " out of " << this->UpdateNumPieces << endl;
   errs << "int of size " <<  sizeof(int) << endl;
   errs << "size_t of size " <<  sizeof(size_t) << endl;
   errs << "long of size " <<  sizeof(long) << endl;
   errs << "vtkIdType of size " <<  sizeof(vtkIdType) << endl;
+*/
 #endif
 
 // must correct for overflow.
