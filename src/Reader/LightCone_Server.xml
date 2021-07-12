@@ -1,0 +1,56 @@
+<ServerManagerConfiguration>
+  <ProxyGroup name="sources">
+    <SourceProxy name="LightCone" class="vtkLightConeReader" label="Light Cone Particle Data reader">
+     <StringVectorProperty
+        name="FileName"
+        command="SetFileName"
+        number_of_elements="1">
+        <FileListDomain name="files"/>
+     </StringVectorProperty>
+     
+     <StringVectorProperty
+        name="PointArrayInfo"
+        information_only="1">
+        <ArraySelectionInformationHelper attribute_name="Point"/>
+     </StringVectorProperty>
+
+     <StringVectorProperty
+        name="PointArrayStatus"
+        command="SetPointArrayStatus"
+        number_of_elements="0"
+        repeat_command="1"
+        number_of_elements_per_command="2"
+        element_types="2 0"
+        information_property="PointArrayInfo">
+       <ArraySelectionDomain name="array_list">
+          <RequiredProperties>
+             <Property name="PointArrayInfo" function="ArrayList"/>
+          </RequiredProperties>
+       </ArraySelectionDomain>
+     </StringVectorProperty>
+
+      <IntVectorProperty command="SetCellType"
+                         default_values="2"
+                         name="CellType"
+                         number_of_elements="1">
+        <EnumerationDomain name="enum">
+          <Entry text="None"
+                 value="0" />
+          <Entry text="Vertex"
+                 value="1" />
+          <Entry text="Poly-Vertex"
+                 value="2" />
+        </EnumerationDomain>
+      </IntVectorProperty>
+      <Hints>
+        <ReaderFactory extensions="cdm"
+                       file_description="Light Cone Particle Data" />
+      </Hints>
+
+        <Documentation>
+          A file in the directory of files to be loaded. 
+        </Documentation>
+   </SourceProxy>
+
+  </ProxyGroup>
+</ServerManagerConfiguration>	

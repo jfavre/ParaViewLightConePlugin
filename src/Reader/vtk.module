@@ -1,0 +1,14 @@
+NAME
+  LightConeReader
+LIBRARY_NAME
+  LightConeReader
+DEPENDS
+  VTK::CommonCore
+  VTK::CommonDataModel
+  VTK::CommonExecutionModel
+  VTK::CommonSystem
+  VTK::ParallelCore
+
+PRIVATE_DEPENDS
+  VTK::mpi
+  #ParaView::VTKExtensionsFiltersGeneral

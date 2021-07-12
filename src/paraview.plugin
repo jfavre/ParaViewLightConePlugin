@@ -1,0 +1,7 @@
+NAME
+  pvLightConeReader
+DESCRIPTION
+  Reader for visualization of LightCone data from Julien Adamek
+REQUIRES_MODULES
+  VTK::CommonCore
+  VTK::CommonExecutionModel
