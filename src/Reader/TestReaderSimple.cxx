@@ -12,8 +12,8 @@ int main(int argc, char **argv)
   VTK_CREATE(vtkLightConeReader, reader);
   reader->SetFileName(argv[1]);
   reader->UpdateInformation();
-  //reader->Enable("Id");
-  //reader->Enable("Velocity");
+  reader->SetPointArrayStatus("id", 1);
+  reader->SetPointArrayStatus("velocity", 1);
   reader->Update();
 
   exit(1);
