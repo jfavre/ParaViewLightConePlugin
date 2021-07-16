@@ -119,22 +119,22 @@ protected:
   // Internal Variables
 
   unsigned int Npart[6];
-  unsigned int Nall[6];
-  double Massarr[6];
-  double Time;
-  double Redshift;
-  int FlagSfr;
-  int FlagFeddback;
-  int FlagCooling;
-  int NumFiles;
-  double BoxSize;
-  double Omega0;
-  double OmegaLambda;
-  double HubbleParam;
-  int FlagAge;
-  int FlagMetals;
-  int NallHW[6];
-  int Flag_entr_ics;
+  double       Mass[6];
+  double       Time;
+  double       Redshift;
+  int          FlagSfr;
+  int          FlagFeddback;
+  unsigned int NpartTotal[6];
+  int          FlagCooling;
+  int          NumFiles;
+  double       BoxSize;
+  double       Omega0;
+  double       OmegaLambda;
+  double       HubbleParam;
+  int          FlagAge;
+  int          FlagMetals;
+  unsigned int NpartTotalHW[6];
+  int          Flag_entr_ics;
 
   //
   FILE *fp;
@@ -145,7 +145,7 @@ protected:
   int           UpdatePiece;
   int           UpdateNumPieces;
   bool          PartTypes[6];
-  int           NumPart_Total[6];
+  long          NumPart_Total[6];
   bool          DistributedSnapshot;
   typedef std::vector<std::string>  stringlist;
   std::map<std::string, stringlist> FieldArrays;

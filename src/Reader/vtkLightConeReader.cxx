@@ -86,7 +86,7 @@ vtkLightConeReader::~vtkLightConeReader()
 #ifdef PARAVIEW_USE_MPI
   this->SetController(NULL);
 #endif
-  std::cerr << "destructor..." << std::endl;
+
 }
 //----------------------------------------------------------------------------
 
@@ -122,12 +122,12 @@ int vtkLightConeReader::OpenFile()
     size_t r;
     r = fread(&beg_marker,           sizeof(int),          1, this->fp);
     r = fread(&this->Npart,          sizeof(unsigned int), 6, this->fp);
-    r = fread(&this->Massarr,        sizeof(double),       6, this->fp);
+    r = fread(&this->Mass,           sizeof(double),       6, this->fp);
     r = fread(&this->Time,           sizeof(double),       1, this->fp);
     r = fread(&this->Redshift,       sizeof(double),       1, this->fp);
     r = fread(&this->FlagSfr,        sizeof(unsigned int), 1, this->fp);
     r = fread(&this->FlagFeddback,   sizeof(unsigned int), 1, this->fp);
-    r = fread(&this->Nall,           sizeof(unsigned int), 6,this->fp);
+    r = fread(&this->NpartTotal,     sizeof(unsigned int), 6,this->fp);
     r = fread(&this->FlagCooling,    sizeof(unsigned int), 1, this->fp);
     r = fread(&this->NumFiles,       sizeof(unsigned int), 1, this->fp);
     r = fread(&this->BoxSize,        sizeof(double),       1, this->fp);
@@ -136,13 +136,16 @@ int vtkLightConeReader::OpenFile()
     r = fread(&this->HubbleParam,    sizeof(double),       1, this->fp);
     r = fread(&this->FlagAge,        sizeof(unsigned int), 1, this->fp);
     r = fread(&this->FlagMetals,     sizeof(unsigned int), 1, this->fp);
-    r = fread(&this->NallHW,         sizeof(unsigned int), 6, this->fp);
+    r = fread(&this->NpartTotalHW,   sizeof(unsigned int), 6, this->fp);
     r = fread(&this->Flag_entr_ics,  sizeof(unsigned int), 1, this->fp);
 
     fseek(this->fp, 256+4, SEEK_SET);
     r = fread(&end_marker, sizeof(int), 1, this->fp);
     if(beg_marker != end_marker)
         return 0;
+        
+    for(auto i=0; i < 6; i++)
+      this->NumPart_Total[i] = (long)this->NpartTotal[i] + ((long)this->NpartTotalHW[i] << 32);
 
     this->PrintHeader();
     //std::cout << "\nSize on disk   " << TotalSize << std::endl;
@@ -157,7 +160,8 @@ void vtkLightConeReader::PrintHeader()
 {
   int i;
   std::cout << "header file: "          << this->FileName << ": ";
-  std::cout << this->Npart[1] << ", " << this->Nall[1] << std::endl;
+  std::cout << this->Npart[1] << " "  << this->NumPart_Total[1] << std::endl;
+
   /*
     
   std::cout << "this->Npart = ";
@@ -175,9 +179,9 @@ void vtkLightConeReader::PrintHeader()
   std::cout << "this->FlagSfr = "       << this->FlagSfr << std::endl;
   std::cout << "this->FlagFeddback = "  << this->FlagFeddback << std::endl;
 
-  std::cout << "this->Nall = ";
+  std::cout << "this->NpartTotal = ";
   for(i=0; i<6;i++)
-    std::cout << this->Nall[i]  << ", ";
+    std::cout << this->NpartTotal[i]  << ", ";
   std::cout << std::endl;
 
   std::cout << "this->FlagCooling = "   << this->FlagCooling  << std::endl;
@@ -189,9 +193,9 @@ void vtkLightConeReader::PrintHeader()
   std::cout << "this->FlagAge = "       << this->FlagAge << std::endl;
   std::cout << "this->FlagMetals = "    << this->FlagMetals << std::endl;
 
-  std::cout << "this->NallHW = ";
+  std::cout << "this->NpartTotalHW = ";
   for(i=0; i<6; i++)
-    std::cout << this->NallHW[i] << ", ";
+    std::cout << this->NpartTotalHW[i] << ", ";
   std::cout << std::endl;
 
   std::cout << "this->Flag_entr_ics = " << this->Flag_entr_ics << std::endl;
@@ -221,7 +225,7 @@ int vtkLightConeReader::RequestInformation(
     {
     for (int i=0; i< 6; i++)
       {
-      if(this->Nall[i])
+      if(this->NpartTotal[i])
         this->PartTypes[i] = true;
       }
     this->PointDataArraySelection->AddArray("velocity");
@@ -269,20 +273,9 @@ void vtkLightConeReader::ReadFloatDataset(const char *name, float* p, long offse
   if(!size) // by default size is 0 and we read ALL
     size = this->Npart[1] * 3;
 
-  std::cerr << "offset = " << offset <<  " and size = " << size << std::endl;
-  //size_t ChunkSize = 268435456; //2^28;
-  size_t ChunkSize = 536870912; //2^29;
-  long Loops = size / ChunkSize;
-  // repeat "Loops" times and then finish up with smaller chunk
-  for(long i=0 ; i < Loops; i++){
-    std::cerr << "offset = " << i*ChunkSize <<  " and size = " << ChunkSize << std::endl;
-    r = fread(&p[i*ChunkSize], sizeof(float), ChunkSize, this->fp);
-    if(r != ChunkSize)
-      std::cerr << "error reading bulk data array for" << name << std::endl;
-  }
-  std::cerr << "offset = " << Loops*ChunkSize <<  " and size = " << size - Loops*ChunkSize << std::endl;
-  r = fread(&p[Loops*ChunkSize], sizeof(float), size - Loops*ChunkSize, this->fp);
-  if(r != (size - Loops*ChunkSize))
+  std::cerr << __LINE__ << " :offset = " << offset <<  " and size = " << size << std::endl;
+  r = fread(p, sizeof(float), size, this->fp);
+  if(r != size)
     std::cerr << "error reading bulk data array for" << name << std::endl;
 }
 
@@ -361,14 +354,14 @@ int vtkLightConeReader::RequestData(
 // must correct for overflow.
   long temp;
   for(int i=0; i < 6; i++)
-    if(this->Nall[i] < 0)
+    if(this->NpartTotal[i] < 0)
       {
-      temp = this->Nall[i];
+      temp = this->NpartTotal[i];
       temp += 4294967296;
 #ifdef PARALLEL_DEBUG
-  errs << "OVERFLOW detected temp= " << temp << ", this->Nall[i]= " << this->Nall[i] << endl;
+  errs << "OVERFLOW detected temp= " << temp << ", this->NpartTotal[i]= " << this->NpartTotal[i] << endl;
 #endif
-      this->Nall[i] = temp;
+      this->NpartTotal[i] = temp;
       }
 
   long LoadPart_Total[6] ={0,0,0,0,0,0};
@@ -377,7 +370,7 @@ int vtkLightConeReader::RequestData(
   for (int i=0; i< 6; i++)
       {
       LoadPart_Total[i] = split_particlesSet(this->Npart[i],  this->UpdatePiece,  this->UpdateNumPieces, ParallelOffset[i]);
-      errs << "LoadPart_Total["<< i << "] = " << LoadPart_Total[i] << ", Nall["<< i << "] = " << this->Npart[i]<< endl;
+      errs << "LoadPart_Total["<< i << "] = " << LoadPart_Total[i] << ", NpartTotal["<< i << "] = " << this->Npart[i]<< endl;
       }
 
 
@@ -416,9 +409,9 @@ int vtkLightConeReader::RequestData(
       vtkDoubleArray *cst = vtkDoubleArray::New();
       cst->SetNumberOfComponents(1);
       cst->SetNumberOfTuples(6);
-      cst->SetName("Massarr");
+      cst->SetName("Mass");
       for(auto i=0; i < 6; i++)
-        cst->SetTuple1(i, this->Massarr[i]);
+        cst->SetTuple1(i, this->Mass[i]);
       output->GetFieldData()->AddArray(cst);
       cst->Delete();
 
@@ -609,7 +602,7 @@ int vtkLightConeReader::RequestData(
       fileOffsetNodes[myType] += offset;
       } // for all part types
 
-  this->CloseFile();
+  //this->CloseFile();
 
 #ifdef PARALLEL_DEBUG
   errs.close();
