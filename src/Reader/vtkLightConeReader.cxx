@@ -77,7 +77,7 @@ vtkLightConeReader::vtkLightConeReader()
 //----------------------------------------------------------------------------
 vtkLightConeReader::~vtkLightConeReader()
 {
-  this->CloseFile();
+  //this->CloseFile();
 
   delete [] this->FileName;
   this->PointDataArraySelection->Delete();
@@ -91,13 +91,19 @@ vtkLightConeReader::~vtkLightConeReader()
 //----------------------------------------------------------------------------
 
 
+void vtkLightConeReader::SetDirectoryName(const char* dn)
+{
+  this->DirectoryName = strdup(vtksys::SystemTools::GetParentDirectory(dn).c_str());
+  this->FileName = strdup(dn);
+}
+
 //----------------------------------------------------------------------------
 void vtkLightConeReader::CloseFile()
 {
   if (this->fp)
     {
     fclose(this->fp);
-    std::cerr << "closing " << this->FileName << std::endl;
+    std::cout << "closing " << this->FileName << std::endl;
     }
   this->fp = nullptr;
 }
@@ -221,42 +227,37 @@ int vtkLightConeReader::RequestInformation(
   this->UpdatePiece = outInfo->Get(vtkStreamingDemandDrivenPipeline::UPDATE_PIECE_NUMBER());
 #endif
 
-  if(this->OpenFile())
-    {
-    for (auto i=0; i< 6; i++)
-      {
-      if(this->NumPart_Total[i])
-        this->PartTypes[i] = true;
-      }
+    this->PartTypes[1] = true;
     this->PointDataArraySelection->AddArray("velocity");
     this->PointDataArraySelection->AddArray("id");
     return 1;
-    }
-  else
-    return 0;
 }
 
-void vtkLightConeReader::ReadINT64Dataset(const char *name, vtkTypeInt64* p, long offset=0, long size=0)
+void vtkLightConeReader::ReadINT64Dataset(const char *name, vtkTypeInt64* p, long offset, long size)
 {
   size_t r;
   int beg_marker, end_marker;
   // skip over header, coordinates, and velocity
-  offset += 4+256+4 + 8*(1+1) + this->Npart[1] * sizeof(float) * (3 + 3);
+  long offset0 = 4+256+4 + 2 * (4 + this->Npart[1] * sizeof(float) * 3 + 4) ;
 
-  fseek(this->fp, offset, SEEK_SET);
+  fseek(this->fp, offset0, SEEK_SET);
   r = fread(&beg_marker, sizeof(int), 1, this->fp);
-  if(!size) // by default size is 0 and we read ALL
-    size = this->Npart[1];
+  
+  fseek(this->fp, offset, SEEK_CUR);
   r = fread(p, sizeof(vtkTypeInt64), size, this->fp);
   if(r != size)
     std::cerr << "error reading bulk data array for" << name << std::endl;
 
-  r = fread(&end_marker, sizeof(int), 1, this->fp);
-  if(beg_marker != end_marker)
-    std::cerr << "ReadINT64Dataset(): error reading begin(" << beg_marker <<  ") and end markers(" << end_marker << ") for " << name << std::endl;
-};
+  // only check end_marker if we read the whole array
+  if(size == this->Npart[1])
+    {
+    r = fread(&end_marker, sizeof(int), 1, this->fp);
+    if(beg_marker != end_marker)
+    std::cerr << __LINE__ << " ReadINT64Dataset(): error reading begin(" << beg_marker <<  ") and end markers(" << end_marker << ") for " << name << std::endl;
+    }
+}
 
-void vtkLightConeReader::ReadFloatDataset(const char *name, float* p, long offset=0, size_t size=0)
+void vtkLightConeReader::ReadFloatDataset(const char *name, float* p, long offset, size_t size)
 {
 // offset will be given as 3*number of particles in subset
   size_t r;
@@ -269,11 +270,7 @@ void vtkLightConeReader::ReadFloatDataset(const char *name, float* p, long offse
   offset += sizeof(int); // to account for begin-of-block marker
 
   fseek(this->fp, offset, SEEK_SET);
-  //r = fread(&beg_marker, sizeof(int), 1, this->fp);
-  if(!size) // by default size is 0 and we read ALL
-    size = this->Npart[1] * 3;
 
-  std::cerr << __LINE__ << " :offset = " << offset <<  " and size = " << size << std::endl;
   r = fread(p, sizeof(float), size, this->fp);
   if(r != size)
     std::cerr << "error reading bulk data array for" << name << std::endl;
@@ -352,6 +349,9 @@ int vtkLightConeReader::RequestData(
 */
 #endif
 
+  if(!this->OpenFile())
+    return 0;
+  
   // long NumPart_Total[6] holds the total number of particles.
   long LoadPart_Total[6] = {0,0,0,0,0,0};
   long ParallelOffset[6];
@@ -501,8 +501,7 @@ int vtkLightConeReader::RequestData(
     for(validPart=0, myType = Gas; myType<= Stars; myType++)
       {
       long offset;
-      char name[16];
-      sprintf(name,"PartType%1d", myType);
+
       if(PartTypes[myType])
         {
 #ifdef ALL_TYPES
@@ -552,7 +551,7 @@ int vtkLightConeReader::RequestData(
         }
       } // for all part types
 
-  //this->CloseFile();
+  this->CloseFile();
 
 #ifdef PARALLEL_DEBUG
   errs.close();

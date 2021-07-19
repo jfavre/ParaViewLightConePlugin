@@ -65,6 +65,9 @@ public:
   vtkSetStringMacro(FileName);
   vtkGetStringMacro(FileName);
 
+  void SetDirectoryName(const char* dn);
+  vtkGetStringMacro(DirectoryName);
+  
   // Description:
   // Set/Get the timestep to be read
   vtkSetMacro(TimeStep,int);
@@ -138,7 +141,8 @@ protected:
 
   //
   FILE *fp;
-  char*         FileName;
+  char          *FileName;
+  char          *DirectoryName;
   int           TimeStep;
   int           ActualTimeStep;
   int           CellType;
