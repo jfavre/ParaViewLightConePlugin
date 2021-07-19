@@ -1,6 +1,6 @@
 <ServerManagerConfiguration>
-  <ProxyGroup name="sources">
-    <SourceProxy name="LightCone" class="vtkLightConeReader" label="Light Cone Particle Data reader">
+  <ProxyGroup name="internal_sources">
+    <Proxy name="LightConeReaderCore" class="vtkLightConeReader" label="LightCone reader (directory)">
      <StringVectorProperty
         name="FileName"
         command="SetFileName"
@@ -28,7 +28,6 @@
           </RequiredProperties>
        </ArraySelectionDomain>
      </StringVectorProperty>
-
       <IntVectorProperty command="SetCellType"
                          default_values="2"
                          name="CellType"
@@ -43,14 +42,78 @@
         </EnumerationDomain>
       </IntVectorProperty>
       <Hints>
-        <ReaderFactory extensions="cdm"
-                       file_description="Light Cone Particle Data" />
+        <ReaderFactory
+          extensions="_cdm"
+          file_description="LightCone Files (directory)"
+        />
       </Hints>
-
+      <StringVectorProperty animateable="0"
+                            command="SetDirectoryName"
+                            name="FileName"
+                            number_of_elements="1"
+                            panel_visibility="never">
+        <FileListDomain name="files" />
         <Documentation>
-          A file in the directory of files to be loaded. 
+          A file in the directory of files to be loaded. The LightCone reader
+          will actually load all valid snapshot files in the same directory as
+          this file as part of the same dataset. This is typical of how
+          LightCone or Gadget files are often stored.
         </Documentation>
-   </SourceProxy>
+        <Hints>
+          <UseDirectoryName />
+        </Hints>
+      </StringVectorProperty>
+   </Proxy>
 
-  </ProxyGroup>
+  </ProxyGroup> <!-- end of internal_sources -->
+  
+    <ProxyGroup name="sources">
+        <SourceProxy class="vtkFileSeriesReader"
+                 file_name_method="SetDirectoryName"
+                 label="LightCone Series Reader"
+                 name="LightConeSeriesReader"
+                 si_class="vtkSIMetaReaderProxy">
+      <Documentation long_help="Reads a series of LightCone files"
+                     short_help="Reads a series of LightCone files.">The raw series
+                     reader reads raw files. The output is a time sequence of
+                     dataset. There is no default file extension</Documentation>
+      <StringVectorProperty animateable="0"
+                            clean_command="RemoveAllFileNames"
+                            command="AddFileName"
+                            name="FileNames"
+                            number_of_elements="1"
+                            panel_visibility="never"
+                            repeat_command="1">
+        <FileListDomain name="files" />
+        <Documentation>The list of files to be read by the reader. If more than
+        one file is specified, the reader will switch to file series mode in
+        which it will pretend that it can support time and provide one file per
+        time step.</Documentation>
+      </StringVectorProperty>
+       
+      <DoubleVectorProperty information_only="1"
+                            name="TimestepValues"
+                            repeatable="1">
+        <TimeStepsInformationHelper />
+        <Documentation>Available timestep values.</Documentation>
+      </DoubleVectorProperty>
+   
+      <SubProxy>
+        <Proxy name="Reader"
+               proxygroup="internal_sources"
+               proxyname="LightConeReaderCore"></Proxy>
+               
+      <ExposedProperties>
+         <Property name="PointArrayStatus" />
+         <Property name="CellType" />
+      </ExposedProperties>
+      </SubProxy>
+
+      <Hints>
+        <ReaderFactory extensions="_cdm"
+                       file_description="LightCone files" />
+      </Hints>
+      <!-- End SeriesReader -->
+    </SourceProxy>
+    </ProxyGroup> <!-- end of sources -->
 </ServerManagerConfiguration>	

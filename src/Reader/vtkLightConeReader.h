@@ -152,6 +152,8 @@ protected:
   long          NumPart_Total[6];
   bool          DistributedSnapshot;
   typedef std::vector<std::string>  stringlist;
+  
+  stringlist                        LightConeFileNames;
   std::map<std::string, stringlist> FieldArrays;
 
   // To allow paraview gui to enable/disable scalar reading

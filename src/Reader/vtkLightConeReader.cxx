@@ -13,6 +13,7 @@
 #include "vtkDataArraySelection.h"
 #include "vtkFloatArray.h"
 #include "vtkDoubleArray.h"
+#include "vtkDirectory.h"
 #include "vtkIdTypeArray.h"
 #include "vtkIdList.h"
 #include "vtkInformation.h"
@@ -46,6 +47,7 @@ vtkStandardNewMacro(vtkLightConeReader);
 vtkLightConeReader::vtkLightConeReader()
 {
   this->SetNumberOfInputPorts(0);
+  this->NumFiles                 = 0;
   this->DistributedSnapshot      = true;
   this->FileName                 = nullptr;
   this->fp                       = nullptr;
@@ -227,10 +229,55 @@ int vtkLightConeReader::RequestInformation(
   this->UpdatePiece = outInfo->Get(vtkStreamingDemandDrivenPipeline::UPDATE_PIECE_NUMBER());
 #endif
 
-    this->PartTypes[1] = true;
-    this->PointDataArraySelection->AddArray("velocity");
-    this->PointDataArraySelection->AddArray("id");
-    return 1;
+    vtkDirectory* dir = vtkDirectory::New();
+    int opened = dir->Open(this->DirectoryName);
+    if (!opened)
+    {
+      vtkErrorMacro("Couldn't open " << this->DirectoryName);
+      dir->Delete();
+      return 0;
+    }
+    vtkIdType numFiles = dir->GetNumberOfFiles();
+    
+    this->LightConeFileNames.clear();
+    // if opening a directory where a snapshot has been split into multiple files,
+    // then the GadgetFileNames should be filled up with all sub-files
+    // otherwise we are in the presence of a "normal directory" where
+    // multiple timesteps have been stored. In that case, we should ignore
+    // the other files found in the directory
+    
+    // open only file0 and look what's inside
+   //  open this->FileName
+   this->OpenFile();
+   this->CloseFile();
+    
+    if(true || this->NumFiles > 1) // ATTENTION overide for testing on laptop
+    for (vtkIdType i = 0; i < numFiles; i++)
+    {
+      if (strcmp(dir->GetFile(i), ".") == 0 ||
+          strcmp(dir->GetFile(i), "..") == 0)
+      {
+        continue;
+      }
+
+      std::string fileString = this->DirectoryName;
+      fileString += "/";
+      fileString += dir->GetFile(i);
+
+      if(fileString.find("_cdm") != std::string::npos)
+        {
+        this->LightConeFileNames.push_back(fileString);
+        }
+    }
+  else
+    this->LightConeFileNames.push_back(this->FileName);
+  
+  dir->Delete();
+  
+  this->PartTypes[1] = true;
+  this->PointDataArraySelection->AddArray("velocity");
+  this->PointDataArraySelection->AddArray("id");
+  return 1;
 }
 
 void vtkLightConeReader::ReadINT64Dataset(const char *name, vtkTypeInt64* p, long offset, long size)
@@ -349,6 +396,10 @@ int vtkLightConeReader::RequestData(
 */
 #endif
 
+  int nb_of_Files = this->LightConeFileNames.size();
+  for(auto i=0; i < nb_of_Files; i++)
+    std::cout << this->LightConeFileNames[i]  << std::endl;
+    
   if(!this->OpenFile())
     return 0;
   
