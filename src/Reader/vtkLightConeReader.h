@@ -118,7 +118,7 @@ protected:
   //
   // Internal Variables
 
-  unsigned int Npart[6];
+  unsigned int Npart[6];     //local to the current file
   double       Mass[6];
   double       Time;
   double       Redshift;
