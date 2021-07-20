@@ -111,16 +111,16 @@ void vtkLightConeReader::CloseFile()
 }
 //----------------------------------------------------------------------------
 // returns 1 for success, 0 otherwise
-int vtkLightConeReader::OpenFile()
+int vtkLightConeReader::OpenFile(const char* filename)
 {
-  if (!this->FileName)
+  if (!filename)
     {
     vtkErrorMacro(<<"FileName must be specified.");
     return 0;
     }
   if(!this->fp)
     {
-    this->fp = fopen(this->FileName, "r");
+    this->fp = fopen(filename, "r");
     fseek(this->fp, 0L, SEEK_END);
     long TotalSize = ftell(fp);
     fseek(this->fp, 0L, SEEK_SET);
@@ -171,15 +171,14 @@ void vtkLightConeReader::PrintHeader()
   std::cout << this->Npart[1] << " "  << this->NumPart_Total[1] << std::endl;
 
   /*
-    
   std::cout << "this->Npart = ";
   for(i=0; i<6;i++)
     std::cout << this->Npart[i] << ", ";
   std::cout << std::endl;
 
-  std::cout << "this->Massarr = ";
+  std::cout << "this->Mass = ";
   for(i=0; i<6;i++)
-    std::cout << this->Massarr[i] << ", ";
+    std::cout << this->Mass[i] << ", ";
   std::cout << std::endl;
   
   std::cout << "this->Time = "          << this->Time << std::endl;
@@ -229,29 +228,29 @@ int vtkLightConeReader::RequestInformation(
   this->UpdatePiece = outInfo->Get(vtkStreamingDemandDrivenPipeline::UPDATE_PIECE_NUMBER());
 #endif
 
-    vtkDirectory* dir = vtkDirectory::New();
-    int opened = dir->Open(this->DirectoryName);
-    if (!opened)
+  vtkDirectory* dir = vtkDirectory::New();
+  int opened = dir->Open(this->DirectoryName);
+  if (!opened)
     {
       vtkErrorMacro("Couldn't open " << this->DirectoryName);
       dir->Delete();
       return 0;
     }
-    vtkIdType numFiles = dir->GetNumberOfFiles();
+  vtkIdType numFiles = dir->GetNumberOfFiles();
     
-    this->LightConeFileNames.clear();
-    // if opening a directory where a snapshot has been split into multiple files,
-    // then the GadgetFileNames should be filled up with all sub-files
-    // otherwise we are in the presence of a "normal directory" where
-    // multiple timesteps have been stored. In that case, we should ignore
-    // the other files found in the directory
+  this->LightConeFileNames.clear();
+  // if opening a directory where a snapshot has been split into multiple files,
+  // then the GadgetFileNames should be filled up with all sub-files
+  // otherwise we are in the presence of a "normal directory" where
+  // multiple timesteps have been stored. In that case, we should ignore
+  // the other files found in the directory
     
-    // open only file0 and look what's inside
-   //  open this->FileName
-   this->OpenFile();
-   this->CloseFile();
+  // open only file0 and look what's inside
+  //  open this->FileName
+  this->OpenFile(this->FileName);
+  this->CloseFile();
     
-    if(true || this->NumFiles > 1) // ATTENTION overide for testing on laptop
+  if(this->NumFiles > 1) // ATTENTION overide for testing on laptop
     for (vtkIdType i = 0; i < numFiles; i++)
     {
       if (strcmp(dir->GetFile(i), ".") == 0 ||
@@ -400,7 +399,7 @@ int vtkLightConeReader::RequestData(
   for(auto i=0; i < nb_of_Files; i++)
     std::cout << this->LightConeFileNames[i]  << std::endl;
     
-  if(!this->OpenFile())
+  if(!this->OpenFile(this->FileName))
     return 0;
   
   // long NumPart_Total[6] holds the total number of particles.
@@ -471,50 +470,6 @@ int vtkLightConeReader::RequestData(
       cst1->SetTuple1(4, this->HubbleParam);
       output->GetFieldData()->AddArray(cst1);
       cst1->Delete();
-  
-      vtkFloatArray *coords = vtkFloatArray::New();
-      coords->SetNumberOfComponents(3);
-      coords->SetNumberOfTuples(LoadPart_Total[myType]);
-      std::cerr << " creating coordinates array of size " << LoadPart_Total[myType] << " points\n";
-      coords->SetName("coords");
-
-      vtkPoints *points = vtkPoints::New();
-      points->SetData(coords);
-      output->SetPoints(points);
-      coords->Delete();
-      points->Delete();
-
-      for(auto i = 0 ; i < this->GetNumberOfPointArrays(); i++)
-        {
-        if(this->GetPointArrayStatus(this->GetPointArrayName(i)))
-          {
-          const char *name = &this->GetPointArrayName(i)[0];
-#ifdef PARALLEL_DEBUG
-      errs << " creating data array " << name << " for PartType " << myType << " with " << LoadPart_Total[myType] << " points\n";
-#endif
-          if(!strcmp(name, "velocity"))
-            {
-            data = vtkFloatArray::New();
-            data->SetNumberOfComponents(3);
-            data->SetNumberOfTuples(LoadPart_Total[myType]);
-      std::cerr << " creating velocity array of size " << LoadPart_Total[myType] << " points\n";
-            data->SetName("velocity");
-            output->GetPointData()->AddArray(data);
-            data->Delete();
-            }
-          else if(!strcmp(name, "id"))
-            {
-            uidata = vtkIdTypeArray::New();
-            uidata->SetNumberOfComponents(1);
-            uidata->SetNumberOfTuples(LoadPart_Total[myType]);
-      std::cerr << " creating id array of size " << LoadPart_Total[myType] << " points\n";
-            uidata->SetName("id");
-            output->GetPointData()->AddArray(uidata);
-            output->GetPointData()->SetGlobalIds(uidata);
-            uidata->Delete();
-            }
-          }
-        }
 
       if (this->CellType == CellTypes::Vertex)
         {
@@ -523,7 +478,7 @@ int vtkLightConeReader::RequestData(
 #else
         vtkIdType* cells = vertices->WritePointer(LoadPart_Total[myType], 2 * LoadPart_Total[myType]);
         for (vtkIdType i = 0; i < LoadPart_Total[myType]; ++i)
-          {f
+          {
           cells[2 * i] = 1;
           cells[2 * i + 1] = i;
           }
@@ -564,9 +519,20 @@ int vtkLightConeReader::RequestData(
 #endif
         offset = ParallelOffset[myType] * sizeof(float) * 3;
         size_t size = LoadPart_Total[myType] * 3;
-// insert coordinates read
-        float *dptr = static_cast<vtkFloatArray *>(output->GetPoints()->GetData())->GetPointer(0);
-        ReadFloatDataset("Coordinates", dptr, offset, size);
+
+// allocate array and read coordinates
+        vtkFloatArray *coords = vtkFloatArray::New();
+        coords->SetNumberOfComponents(3);
+        coords->SetNumberOfTuples(LoadPart_Total[myType]);
+        std::cerr << " creating coordinates array of size " << LoadPart_Total[myType] << " points\n";
+        coords->SetName("coords");
+
+        vtkPoints *points = vtkPoints::New();
+        points->SetData(coords);
+        output->SetPoints(points);
+        coords->Delete();
+        points->Delete();
+        ReadFloatDataset("Coordinates", coords->GetPointer(0), offset, size);
 // end of coordinates read
 
 // insert PointData here
@@ -580,19 +546,32 @@ int vtkLightConeReader::RequestData(
 #endif
           if(!strcmp(name, "id"))
             {
-            uidata = static_cast<vtkIdTypeArray *>(output->GetPointData()->GetArray(name));
-            vtkTypeInt64 *lptr = uidata->GetPointer( 0 );
+            uidata = vtkIdTypeArray::New();
+            uidata->SetNumberOfComponents(1);
+            uidata->SetNumberOfTuples(LoadPart_Total[myType]);
+            std::cerr << " creating id array of size " << LoadPart_Total[myType] << " points\n";
+            uidata->SetName("id");
+            output->GetPointData()->AddArray(uidata);
+            output->GetPointData()->SetGlobalIds(uidata);
+            uidata->Delete();
+            
             offset = ParallelOffset[myType] * sizeof(vtkTypeInt64);
             size = LoadPart_Total[myType];
-            ReadINT64Dataset("id", lptr, offset, size);
+            ReadINT64Dataset("id", uidata->GetPointer(0), offset, size);
             }
           else // can only be velocity, thus factor 3
             {
-            data = static_cast<vtkFloatArray *>(output->GetPointData()->GetArray(name));
-            dptr = data->GetPointer( 0 );
+            data = vtkFloatArray::New();
+            data->SetNumberOfComponents(3);
+            data->SetNumberOfTuples(LoadPart_Total[myType]);
+            std::cerr << " creating velocity array of size " << LoadPart_Total[myType] << " points\n";
+            data->SetName("velocity");
+            output->GetPointData()->AddArray(data);
+            data->Delete();
+
             offset = ParallelOffset[myType]*sizeof(float) * 3;
             size = LoadPart_Total[myType] * 3;
-            ReadFloatDataset(name, dptr, offset, size);
+            ReadFloatDataset(name, data->GetPointer(0), offset, size);
             }
           }
         }

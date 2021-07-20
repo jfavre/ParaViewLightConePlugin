@@ -13,3 +13,6 @@ paraview_add_server_manager_xmls(
 
 ADD_EXECUTABLE(TestReaderSimple TestReaderSimple.cxx)
 TARGET_LINK_LIBRARIES(TestReaderSimple LightConeReader)
+
+ADD_EXECUTABLE(ReadWrite ReadWrite.cxx)
+TARGET_LINK_LIBRARIES(ReadWrite LightConeReader)

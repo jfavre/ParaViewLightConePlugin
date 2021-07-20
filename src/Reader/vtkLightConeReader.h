@@ -113,7 +113,7 @@ protected:
   //
   int   RequestInformation(vtkInformation *, vtkInformationVector **, vtkInformationVector *);
   int   RequestData(vtkInformation *, vtkInformationVector **, vtkInformationVector *);
-  int   OpenFile();
+  int   OpenFile(const char*filename);
   void  PrintHeader();
   void  CloseFile();
   void ReadINT64Dataset(const char *, vtkTypeInt64*, long, long);
