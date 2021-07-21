@@ -18,7 +18,7 @@
 #include "vtkIdList.h"
 #include "vtkInformation.h"
 #include "vtkInformationVector.h"
-#ifdef ALL_TYPES
+#ifdef MULTI_BLOCKS
 #include "vtkMultiBlockDataSet.h"
 #endif
 #include "vtkObjectFactory.h"
@@ -54,8 +54,6 @@ vtkLightConeReader::vtkLightConeReader()
   this->TimeStep                 = 0;
   this->ActualTimeStep           = 0;
   this->CellType                 = 0;
-  this->UpdatePiece              = 0;
-  this->UpdateNumPieces          = 0;
   this->PointDataArraySelection  = vtkDataArraySelection::New();
   for (auto i=0; i< 6; i++)
     {
@@ -66,7 +64,7 @@ vtkLightConeReader::vtkLightConeReader()
   this->FieldArrays = {
     {"PartType0", {"Foo", "Bar"} },
     {"PartType1", {"velocity", "id"} }, 
-#ifdef ALL_TYPES
+#ifdef MULTI_BLOCKS
     {"PartType1", {"velocity"} },
     {"PartType4", {"Density"} }
 #endif
@@ -79,8 +77,6 @@ vtkLightConeReader::vtkLightConeReader()
 //----------------------------------------------------------------------------
 vtkLightConeReader::~vtkLightConeReader()
 {
-  //this->CloseFile();
-
   delete [] this->FileName;
   this->PointDataArraySelection->Delete();
   this->PointDataArraySelection = nullptr;
@@ -100,12 +96,12 @@ void vtkLightConeReader::SetDirectoryName(const char* dn)
 }
 
 //----------------------------------------------------------------------------
-void vtkLightConeReader::CloseFile()
+void vtkLightConeReader::CloseFile(const char* filename)
 {
   if (this->fp)
     {
     fclose(this->fp);
-    std::cout << "closing " << this->FileName << std::endl;
+    std::cout << "closing " << filename << std::endl;
     }
   this->fp = nullptr;
 }
@@ -155,7 +151,7 @@ int vtkLightConeReader::OpenFile(const char* filename)
     for(auto i=0; i < 6; i++)
       this->NumPart_Total[i] = (long)this->NpartTotal[i] + ((long)this->NpartTotalHW[i] << 32);
 
-    this->PrintHeader();
+    this->PrintHeader(filename);
     //std::cout << "\nSize on disk   " << TotalSize << std::endl;
     //std::cout << "Estimated Size " << (4+256+4) + (4+this->Npart[1]*12L+4) + (4+this->Npart[1]*12L+4) + (4+this->Npart[1]*8L+4) << "\n" <<std::endl;
     }
@@ -164,10 +160,10 @@ int vtkLightConeReader::OpenFile(const char* filename)
 }
 
 //----------------------------------------------------------------------------
-void vtkLightConeReader::PrintHeader()
+void vtkLightConeReader::PrintHeader(const char *filename)
 {
   int i;
-  std::cout << "header file (local and total # of particles): "          << this->FileName << ": ";
+  std::cout << "header file (local and total # of particles): "          << filename << ": ";
   std::cout << this->Npart[1] << " "  << this->NumPart_Total[1] << std::endl;
 
   /*
@@ -218,16 +214,6 @@ int vtkLightConeReader::RequestInformation(
   vtkInformation *outInfo = outputVector->GetInformationObject(0);
   outInfo->Set(CAN_HANDLE_PIECE_REQUEST(), 1);
 
-#ifdef PARAVIEW_USE_MPI
-  if (this->Controller)
-    {
-    this->UpdatePiece = this->Controller->GetLocalProcessId();
-    this->UpdateNumPieces = this->Controller->GetNumberOfProcesses();
-    }
-#else
-  this->UpdatePiece = outInfo->Get(vtkStreamingDemandDrivenPipeline::UPDATE_PIECE_NUMBER());
-#endif
-
   vtkDirectory* dir = vtkDirectory::New();
   int opened = dir->Open(this->DirectoryName);
   if (!opened)
@@ -248,7 +234,7 @@ int vtkLightConeReader::RequestInformation(
   // open only file0 and look what's inside
   //  open this->FileName
   this->OpenFile(this->FileName);
-  this->CloseFile();
+  this->CloseFile(this->FileName);
     
   if(this->NumFiles > 1) // ATTENTION overide for testing on laptop
     for (vtkIdType i = 0; i < numFiles; i++)
@@ -339,8 +325,8 @@ long split_particlesSet(long N, int piece, int numPieces, long &offset)
       {
       load = N - (numPieces-1) * load;
       }
+    offset = (N / numPieces) * piece;
     }
-  offset = (N / numPieces) * piece;
   return load;
 }
 
@@ -351,43 +337,40 @@ int vtkLightConeReader::RequestData(
 {
   vtkInformation *outInfo = outputVector->GetInformationObject(0);
   vtkDataObject* doOutput = outInfo->Get(vtkDataObject::DATA_OBJECT());
-#ifdef ALL_TYPES
+#ifdef MULTI_BLOCKS
   vtkMultiBlockDataSet* mb = vtkMultiBlockDataSet::SafeDownCast(doOutput);
   if (!mb)
     {
     return 0;
     }
 #else
-#ifdef OUTPUT_UG
-  vtkUnstructuredGrid* output = vtkUnstructuredGrid::SafeDownCast(doOutput);
-#else
   vtkPolyData* output = vtkPolyData::SafeDownCast(doOutput);
 #endif
-#endif
 
+  int UpdatePiece, UpdateNumPieces;
 #ifdef PARAVIEW_USE_MPI
   if (this->Controller &&
-      (this->UpdatePiece != this->Controller->GetLocalProcessId() ||
-       this->UpdateNumPieces != this->Controller->GetNumberOfProcesses()))
+      (UpdatePiece != this->Controller->GetLocalProcessId() ||
+       UpdateNumPieces != this->Controller->GetNumberOfProcesses()))
   {
     vtkDebugMacro(<< "Parallel failure, Id's not right (ignore)");
-    this->UpdatePiece = this->Controller->GetLocalProcessId();
-    this->UpdateNumPieces = this->Controller->GetNumberOfProcesses();
+    UpdatePiece = this->Controller->GetLocalProcessId();
+    UpdateNumPieces = this->Controller->GetNumberOfProcesses();
   }
 #else
-  this->UpdatePiece = outInfo->Get(vtkStreamingDemandDrivenPipeline::UPDATE_PIECE_NUMBER());
-  this->UpdateNumPieces = outInfo->Get(vtkStreamingDemandDrivenPipeline::UPDATE_NUMBER_OF_PIECES());
+  UpdatePiece = outInfo->Get(vtkStreamingDemandDrivenPipeline::UPDATE_PIECE_NUMBER());
+  UpdateNumPieces = outInfo->Get(vtkStreamingDemandDrivenPipeline::UPDATE_NUMBER_OF_PIECES());
 #endif
 
 #define PARALLEL_DEBUG 1
 #ifdef PARALLEL_DEBUG
   std::ostringstream fname;
-  //fname << "/scratch/snx3000/jfavre/out." << this->UpdatePiece << ".txt" << ends;
-  fname << "/dev/shm/out." << this->UpdatePiece << ".txt" << ends;
+  //fname << "/scratch/snx3000/jfavre/out." << UpdatePiece << ".txt" << ends;
+  fname << "/dev/shm/out." << UpdatePiece << ".txt" << ends;
   std::ofstream errs;
   errs.open(fname.str().c_str(), ios::app);
 /*
-  errs << "piece " << this->UpdatePiece << " out of " << this->UpdateNumPieces << endl;
+  errs << "piece " << UpdatePiece << " out of " << this->UpdateNumPieces << endl;
   errs << "int of size " <<  sizeof(int) << endl;
   errs << "size_t of size " <<  sizeof(size_t) << endl;
   errs << "long of size " <<  sizeof(long) << endl;
@@ -396,50 +379,39 @@ int vtkLightConeReader::RequestData(
 #endif
 
   int nb_of_Files = this->LightConeFileNames.size();
+  std::cout << ".........dictionnary of LC data files........\n";
   for(auto i=0; i < nb_of_Files; i++)
     std::cout << this->LightConeFileNames[i]  << std::endl;
-    
-  if(!this->OpenFile(this->FileName))
-    return 0;
+  std::cout << ".............................................\n";
+  // we will assign files to each pvserver rank if nb_of_Files % UpdateNumPieces == UpdatePiece
+
   
   // long NumPart_Total[6] holds the total number of particles.
   long LoadPart_Total[6] = {0,0,0,0,0,0};
   long ParallelOffset[6];
 
-  auto i=1;
-  LoadPart_Total[i] = split_particlesSet(this->Npart[i],  this->UpdatePiece,  this->UpdateNumPieces, ParallelOffset[i]);
-  errs << "LoadPart_Total["<< i << "] = " << LoadPart_Total[i] << ", NpartTotal["<< i << "] = " << this->Npart[i]<< endl;
-
-#ifdef ALL_TYPES
-#ifdef OUTPUT_UG
-  vtkUnstructuredGrid *output;
-#else
-  vtkPolyData *output;
-#endif
-#endif
-
   vtkFloatArray  *data;
   vtkIdTypeArray *uidata;
 
-  int validPart, myType;
+  int myType=Halo;
 
-  for(validPart=0, myType = Gas; myType<= Stars; myType++)
+  for(auto particleSubset=0; particleSubset < nb_of_Files; particleSubset++)
     {
-    if(PartTypes[myType])
+    if((nb_of_Files == 1) || (particleSubset % UpdateNumPieces == UpdatePiece))
       {
-#ifdef PARALLEL_DEBUG
-      errs << " creating PolyData for PartType " << myType << " with " << LoadPart_Total[myType] << " points at offset " << ParallelOffset[myType] << std::endl;
-#endif
+    if(!this->OpenFile(this->LightConeFileNames[particleSubset].c_str()))
+      return 0;
 
-#ifdef ALL_TYPES
-#ifdef OUTPUT_UG
-      output = vtkUnstructuredGrid::New();
-#else
-      output = vtkPolyData::New();
-#endif
+  if(nb_of_Files == 1)
+    LoadPart_Total[1] = split_particlesSet(this->Npart[1], UpdatePiece, UpdateNumPieces, ParallelOffset[1]);
+  else
+    LoadPart_Total[1] = split_particlesSet(this->Npart[1], 0, 1, ParallelOffset[1]);
+  errs << "LoadPart_Total[1] = " << LoadPart_Total[1] << ", NpartTotal[1] = " << this->Npart[1]<< endl;
+#ifdef MULTI_BLOCKS
+      vtkPolyData *output = vtkPolyData::New();
 
-      mb->SetBlock(validPart, output);
-      mb->GetMetaData(validPart)->Set(vtkCompositeDataSet::NAME(), ParticleTypes[myType]);
+      mb->SetBlock(particleSubset, output);
+      //mb->GetMetaData(particleSubset)->Set(vtkCompositeDataSet::NAME(), ParticleTypes[myType]);
       output->Delete();
 #endif
       vtkDoubleArray *cst = vtkDoubleArray::New();
@@ -483,48 +455,28 @@ int vtkLightConeReader::RequestData(
           cells[2 * i + 1] = i;
           }
 #endif
-#ifdef OUTPUT_UG
-       output->SetCells(VTK_VERTEX, vertices);
-#else
        output->SetVerts(vertices);
-#endif
        vertices->Delete();
        }
      else if (this->CellType == CellTypes::PolyVertex)
         {
         vtkIdList *list = vtkIdList::New();
-        list->SetNumberOfIds(LoadPart_Total[myType]);
-        for(vtkTypeInt64 i=0; i < LoadPart_Total[myType]; i++)
+        list->SetNumberOfIds(LoadPart_Total[1]);
+        for(vtkTypeInt64 i=0; i < LoadPart_Total[1]; i++)
           list->SetId(i, i);
         output->Allocate(1);
         output->InsertNextCell(VTK_POLY_VERTEX, list);
         list->Delete();
         }
-      validPart++;
-      }
-    }
 
-    for(validPart=0, myType = Gas; myType<= Stars; myType++)
-      {
-      long offset;
-
-      if(PartTypes[myType])
-        {
-#ifdef ALL_TYPES
-#ifdef OUTPUT_UG
-        output = static_cast<vtkUnstructuredGrid*>(mb->GetBlock(validPart));
-#else
-        output = static_cast<vtkPolyData*>(mb->GetBlock(validPart));
-#endif
-#endif
-        offset = ParallelOffset[myType] * sizeof(float) * 3;
-        size_t size = LoadPart_Total[myType] * 3;
+      long offset = ParallelOffset[1] * sizeof(float) * 3;
+        size_t size = LoadPart_Total[1] * 3;
 
 // allocate array and read coordinates
         vtkFloatArray *coords = vtkFloatArray::New();
         coords->SetNumberOfComponents(3);
-        coords->SetNumberOfTuples(LoadPart_Total[myType]);
-        std::cerr << " creating coordinates array of size " << LoadPart_Total[myType] << " points\n";
+        coords->SetNumberOfTuples(LoadPart_Total[1]);
+        std::cerr << " creating coordinates array of size " << LoadPart_Total[1] << " points\n";
         coords->SetName("coords");
 
         vtkPoints *points = vtkPoints::New();
@@ -542,29 +494,29 @@ int vtkLightConeReader::RequestData(
           {
             const char *name = &this->GetPointArrayName(i)[0];
 #ifdef PARALLEL_DEBUG
-      errs << this->FileName << ": reading data array " << name << " for PartType " << myType << " with " << LoadPart_Total[myType] << " points\n";
+      errs << this->FileName << ": reading data array with " << LoadPart_Total[1] << " points\n";
 #endif
           if(!strcmp(name, "id"))
             {
             uidata = vtkIdTypeArray::New();
             uidata->SetNumberOfComponents(1);
-            uidata->SetNumberOfTuples(LoadPart_Total[myType]);
-            std::cerr << " creating id array of size " << LoadPart_Total[myType] << " points\n";
+            uidata->SetNumberOfTuples(LoadPart_Total[1]);
+            std::cerr << " creating id array of size " << LoadPart_Total[1] << " points\n";
             uidata->SetName("id");
             output->GetPointData()->AddArray(uidata);
             output->GetPointData()->SetGlobalIds(uidata);
             uidata->Delete();
             
-            offset = ParallelOffset[myType] * sizeof(vtkTypeInt64);
-            size = LoadPart_Total[myType];
+            offset = ParallelOffset[1] * sizeof(vtkTypeInt64);
+            size = LoadPart_Total[1];
             ReadINT64Dataset("id", uidata->GetPointer(0), offset, size);
             }
           else // can only be velocity, thus factor 3
             {
             data = vtkFloatArray::New();
             data->SetNumberOfComponents(3);
-            data->SetNumberOfTuples(LoadPart_Total[myType]);
-            std::cerr << " creating velocity array of size " << LoadPart_Total[myType] << " points\n";
+            data->SetNumberOfTuples(LoadPart_Total[1]);
+            std::cerr << " creating velocity array of size " << LoadPart_Total[1] << " points\n";
             data->SetName("velocity");
             output->GetPointData()->AddArray(data);
             data->Delete();
@@ -576,13 +528,9 @@ int vtkLightConeReader::RequestData(
           }
         }
 // end of PointData read
-
-        validPart++;
-        }
-      } // for all part types
-
-  this->CloseFile();
-
+  this->CloseFile(this->LightConeFileNames[particleSubset].c_str());
+    }
+    }
 #ifdef PARALLEL_DEBUG
   errs.close();
 #endif

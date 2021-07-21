@@ -1,9 +1,13 @@
 #include <iostream>
-#include <stdio.h>
 #include <vtkAutoInit.h>
 VTK_MODULE_INIT(vtkRenderingOpenGL2);
 VTK_MODULE_INIT(vtkInteractionStyle);
 #include "vtkLightConeReader.h"
+#include "vtkPointData.h"
+#include "vtkPolyData.h"
+#ifdef ALL_TYPES
+#include "vtkMultiBlockDataSet.h"
+#endif
 
 #define VTK_CREATE(type, var) \
   vtkSmartPointer<type> var = vtkSmartPointer<type>::New();

@@ -13,18 +13,13 @@
 #include <string>
 #include <vector>
 
-//#define ALL_TYPES 1
-//#define OUTPUT_UG 1
+#define MULTI_BLOCKS 1
 
-#ifdef ALL_TYPES
+#ifdef MULTI_BLOCKS
 #include "vtkMultiBlockDataSetAlgorithm.h"
 static std::vector<std::string> ParticleTypes = {"PartType0", "PartType1", "PartType2", "PartType3", "PartType4", "PartType5"};
 #else
-#ifdef OUTPUT_UG
-#include "vtkUnstructuredGridAlgorithm.h"
-#else
 #include "vtkPolyDataAlgorithm.h"
-#endif
 static std::vector<std::string> ParticleTypes = {"PartType1"};
 #endif
 
@@ -39,26 +34,18 @@ class vtkMultiProcessController;
 enum  ParticleType : int {Gas=0, Halo=1, Disk=2, Bulge=3, Stars=4, Bndry=5};
 enum  CellTypes : int {None=0, Vertex=1, PolyVertex=2};
 
-#ifdef ALL_TYPES
+#ifdef MULTI_BLOCKS
 class vtkLightConeReader : public vtkMultiBlockDataSetAlgorithm
 #else
-#ifdef OUTPUT_UG
-class vtkLightConeReader : public vtkUnstructuredGridAlgorithm
-#else
 class vtkLightConeReader : public vtkPolyDataAlgorithm
-#endif
 #endif
 {
 public:
   static vtkLightConeReader *New();
-#ifdef ALL_TYPES
+#ifdef MULTI_BLOCKS
   vtkTypeMacro(vtkLightConeReader,vtkMultiBlockDataSetAlgorithm);
 #else
-#ifdef OUTPUT_UG
-  vtkTypeMacro(vtkLightConeReader,vtkUnstructuredGridAlgorithm);
-#else
   vtkTypeMacro(vtkLightConeReader,vtkPolyDataAlgorithm);
-#endif
 #endif
   void PrintSelf(ostream& os, vtkIndent indent);
 
@@ -114,8 +101,8 @@ protected:
   int   RequestInformation(vtkInformation *, vtkInformationVector **, vtkInformationVector *);
   int   RequestData(vtkInformation *, vtkInformationVector **, vtkInformationVector *);
   int   OpenFile(const char*filename);
-  void  PrintHeader();
-  void  CloseFile();
+  void  PrintHeader(const char *filename);
+  void  CloseFile(const char *filename);
   void ReadINT64Dataset(const char *, vtkTypeInt64*, long, long);
   void ReadFloatDataset(const char *, float*, long, size_t);
   //
@@ -146,8 +133,6 @@ protected:
   int           TimeStep;
   int           ActualTimeStep;
   int           CellType;
-  int           UpdatePiece;
-  int           UpdateNumPieces;
   bool          PartTypes[6];
   long          NumPart_Total[6];
   bool          DistributedSnapshot;
