@@ -379,10 +379,20 @@ int vtkLightConeReader::RequestData(
 #endif
 
   int nb_of_Files = this->LightConeFileNames.size();
-  std::cout << ".........dictionnary of LC data files........\n";
-  for(auto i=0; i < nb_of_Files; i++)
-    std::cout << this->LightConeFileNames[i]  << std::endl;
-  std::cout << ".............................................\n";
+  if(this->DistributedSnapshot)
+    {
+    std::cout << ".........dictionnary of LC data files........\n";
+    for(auto i=0; i < nb_of_Files; i++)
+      std::cout << this->LightConeFileNames[i]  << std::endl;
+    std::cout << ".............................................\n";
+    }
+  else
+    {
+    this->LightConeFileNames.clear();
+    this->LightConeFileNames.push_back(this->FileName);
+    nb_of_Files = 1;
+    }
+  
   // we will assign files to each pvserver rank if nb_of_Files % UpdateNumPieces == UpdatePiece
 
   

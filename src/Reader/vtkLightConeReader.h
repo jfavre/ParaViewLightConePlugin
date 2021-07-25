@@ -51,6 +51,10 @@ public:
 
   vtkSetStringMacro(FileName);
   vtkGetStringMacro(FileName);
+  
+  vtkSetMacro(DistributedSnapshot, vtkTypeBool);
+  vtkGetMacro(DistributedSnapshot, vtkTypeBool);
+  vtkBooleanMacro(DistributedSnapshot, vtkTypeBool);
 
   void SetDirectoryName(const char* dn);
   vtkGetStringMacro(DirectoryName);
@@ -135,7 +139,7 @@ protected:
   int           CellType;
   bool          PartTypes[6];
   long          NumPart_Total[6];
-  bool          DistributedSnapshot;
+  vtkTypeBool   DistributedSnapshot;
   typedef std::vector<std::string>  stringlist;
   
   stringlist                        LightConeFileNames;

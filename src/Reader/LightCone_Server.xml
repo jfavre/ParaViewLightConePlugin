@@ -28,6 +28,7 @@
           </RequiredProperties>
        </ArraySelectionDomain>
      </StringVectorProperty>
+     
       <IntVectorProperty command="SetCellType"
                          default_values="2"
                          name="CellType"
@@ -41,6 +42,18 @@
                  value="2" />
         </EnumerationDomain>
       </IntVectorProperty>
+
+      <IntVectorProperty name="DistributedSnapshot" 
+        command="SetDistributedSnapshot"
+        number_of_elements="1"
+        default_values="1"
+        panel_visibility="advanced">
+      <BooleanDomain name="bool" />
+      <Documentation>
+            
+      </Documentation>
+     </IntVectorProperty>
+     
       <Hints>
         <ReaderFactory
           extensions="_cdm"
@@ -106,6 +119,7 @@
       <ExposedProperties>
          <Property name="PointArrayStatus" />
          <Property name="CellType" />
+         <Property name="DistributedSnapshot" />
       </ExposedProperties>
       </SubProxy>
 
