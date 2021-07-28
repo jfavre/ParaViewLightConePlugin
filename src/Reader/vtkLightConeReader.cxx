@@ -101,7 +101,7 @@ void vtkLightConeReader::CloseFile(const char* filename)
   if (this->fp)
     {
     fclose(this->fp);
-    std::cout << "closing " << filename << std::endl;
+    std::cout << "closing " << filename << std::endl << std::endl;
     }
   this->fp = nullptr;
 }
@@ -385,8 +385,8 @@ int vtkLightConeReader::RequestData(
 #define PARALLEL_DEBUG 1
 #ifdef PARALLEL_DEBUG
   std::ostringstream fname;
-  //fname << "/scratch/snx3000/jfavre/out." << UpdatePiece << ".txt" << ends;
-  fname << "/dev/shm/out." << UpdatePiece << ".txt" << ends;
+  fname << "/scratch/snx3000/jfavre/out." << UpdatePiece << ".txt" << ends;
+  //fname << "/dev/shm/out." << UpdatePiece << ".txt" << ends;
   std::ofstream errs;
   errs.open(fname.str().c_str(), ios::app);
 /*
@@ -399,12 +399,15 @@ int vtkLightConeReader::RequestData(
 #endif
 
   int nb_of_Files = this->LightConeFileNames.size();
-  if(this->DistributedSnapshot && UpdatePiece == 0)
+  if(this->DistributedSnapshot)
     {
-    std::cout << ".........dictionnary of LC data files........\n";
-    for(auto i=0; i < nb_of_Files; i++)
-      std::cout << this->LightConeFileNames[i]  << std::endl;
-    std::cout << ".............................................\n";
+    if(UpdatePiece == 0)
+      {
+      std::cout << ".........dictionnary of LC data files........\n";
+      for(auto i=0; i < nb_of_Files; i++)
+        std::cout << this->LightConeFileNames[i]  << std::endl;
+      std::cout << ".............................................\n";
+      }
     }
   else
     {
@@ -524,7 +527,7 @@ int vtkLightConeReader::RequestData(
           {
             const char *name = &this->GetPointArrayName(i)[0];
 #ifdef PARALLEL_DEBUG
-      errs << this->FileName << ": reading data array with " << LoadPart_Total[1] << " points\n";
+      errs << this->LightConeFileNames[particleSubset] << ": reading data array with " << LoadPart_Total[1] << " points\n";
 #endif
           if(!strcmp(name, "id"))
             {
@@ -559,6 +562,9 @@ int vtkLightConeReader::RequestData(
         }
 // end of PointData read
   this->CloseFile(this->LightConeFileNames[particleSubset].c_str());
+  #ifdef PARALLEL_DEBUG
+      errs << "\n";
+#endif
     }
     }
 #ifdef PARALLEL_DEBUG

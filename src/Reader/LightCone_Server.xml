@@ -50,7 +50,7 @@
         panel_visibility="advanced">
       <BooleanDomain name="bool" />
       <Documentation>
-            
+      If set (the default), will load all datafiles with similar pattern, assuming they form the whole. If unset, only read the selected file, no matter what (This can be used when a time-series of files is present)
       </Documentation>
      </IntVectorProperty>
      
