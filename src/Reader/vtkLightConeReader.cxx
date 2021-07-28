@@ -116,10 +116,10 @@ int vtkLightConeReader::OpenFile(const char* filename)
     }
   if(!this->fp)
     {
-    this->fp = fopen(filename, "r");
-    fseek(this->fp, 0L, SEEK_END);
-    long TotalSize = ftell(fp);
-    fseek(this->fp, 0L, SEEK_SET);
+    this->fp = fopen(filename, "rb");
+    //fseek(this->fp, 0L, SEEK_END);
+    //long TotalSize = ftell(fp);
+    //fseek(this->fp, 0L, SEEK_SET);
     
     int beg_marker, end_marker;
  
@@ -156,6 +156,26 @@ int vtkLightConeReader::OpenFile(const char* filename)
     //std::cout << "Estimated Size " << (4+256+4) + (4+this->Npart[1]*12L+4) + (4+this->Npart[1]*12L+4) + (4+this->Npart[1]*8L+4) << "\n" <<std::endl;
     }
 
+  return 1;
+}
+
+int vtkLightConeReader::CanReadFile(const char* fname)
+{
+  FILE* fp;
+  if ((fp = vtksys::SystemTools::Fopen(fname, "rb")) == nullptr)
+  {
+    return 0;
+  }
+  int beg_marker, end_marker;
+  fread(&beg_marker, sizeof(int), 1, fp);
+  fseek(fp, 256+4, SEEK_SET);
+  fread(&end_marker, sizeof(int), 1, fp);
+  if(beg_marker != end_marker)
+    {
+      fclose(fp);
+      return 0;
+    }
+  fclose(fp);
   return 1;
 }
 
@@ -379,7 +399,7 @@ int vtkLightConeReader::RequestData(
 #endif
 
   int nb_of_Files = this->LightConeFileNames.size();
-  if(this->DistributedSnapshot)
+  if(this->DistributedSnapshot && UpdatePiece == 0)
     {
     std::cout << ".........dictionnary of LC data files........\n";
     for(auto i=0; i < nb_of_Files; i++)

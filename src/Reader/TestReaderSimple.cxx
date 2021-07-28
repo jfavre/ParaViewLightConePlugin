@@ -18,9 +18,9 @@ int main(int argc, char **argv)
   std::cout << "opening file " << argv[1] << std::endl;
   reader->SetFileName(argv[1]);
   reader->SetDirectoryName(argv[1]);
-  
-  reader->SetPointArrayStatus("id", 1);
-  reader->SetPointArrayStatus("velocity", 1);
+  reader->UpdateInformation();
+  reader->SetPointArrayStatus("id", 0);
+  reader->SetPointArrayStatus("velocity", 0);
   reader->Update();
 
   exit(1);

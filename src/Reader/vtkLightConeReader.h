@@ -85,7 +85,7 @@ public:
   const char* GetPointArrayStatusArrayName(int index) { return GetPointArrayName(index); }
   int         GetPointArrayStatusArrayStatus(const char* name) { return GetPointArrayStatus(name); }
   void        SetPointArrayStatusArrayStatus(const char* name, int status) { SetPointArrayStatus(name, status); }
-
+  int         CanReadFile(const char* fname);
 #ifdef PARAVIEW_USE_MPI
 
     // Description:
