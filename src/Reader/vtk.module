@@ -7,6 +7,7 @@ DEPENDS
   VTK::CommonDataModel
   VTK::CommonExecutionModel
   VTK::CommonSystem
+  VTK::FiltersPoints
   VTK::InteractionStyle
   VTK::ParallelCore
   VTK::RenderingOpenGL2

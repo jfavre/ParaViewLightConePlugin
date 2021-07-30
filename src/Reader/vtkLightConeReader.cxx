@@ -14,6 +14,8 @@
 #include "vtkFloatArray.h"
 #include "vtkDoubleArray.h"
 #include "vtkDirectory.h"
+#include "vtkHierarchicalBinningFilter.h"
+#include "vtkExtractHierarchicalBins.h"
 #include "vtkIdTypeArray.h"
 #include "vtkIdList.h"
 #include "vtkInformation.h"
@@ -101,7 +103,7 @@ void vtkLightConeReader::CloseFile(const char* filename)
   if (this->fp)
     {
     fclose(this->fp);
-    std::cout << "closing " << filename << std::endl << std::endl;
+    //std::cout << "closing " << filename << std::endl << std::endl;
     }
   this->fp = nullptr;
 }
@@ -372,11 +374,11 @@ int vtkLightConeReader::RequestData(
   if (this->Controller &&
       (UpdatePiece != this->Controller->GetLocalProcessId() ||
        UpdateNumPieces != this->Controller->GetNumberOfProcesses()))
-  {
+    {
     vtkDebugMacro(<< "Parallel failure, Id's not right (ignore)");
     UpdatePiece = this->Controller->GetLocalProcessId();
     UpdateNumPieces = this->Controller->GetNumberOfProcesses();
-  }
+    }
 #else
   UpdatePiece = outInfo->Get(vtkStreamingDemandDrivenPipeline::UPDATE_PIECE_NUMBER());
   UpdateNumPieces = outInfo->Get(vtkStreamingDemandDrivenPipeline::UPDATE_NUMBER_OF_PIECES());
@@ -432,20 +434,21 @@ int vtkLightConeReader::RequestData(
     {
     if((nb_of_Files == 1) || (particleSubset % UpdateNumPieces == UpdatePiece))
       {
-    if(!this->OpenFile(this->LightConeFileNames[particleSubset].c_str()))
-      return 0;
+      if(!this->OpenFile(this->LightConeFileNames[particleSubset].c_str()))
+        return 0;
 
-  if(nb_of_Files == 1)
-    LoadPart_Total[1] = split_particlesSet(this->Npart[1], UpdatePiece, UpdateNumPieces, ParallelOffset[1]);
-  else
-    LoadPart_Total[1] = split_particlesSet(this->Npart[1], 0, 1, ParallelOffset[1]);
-  errs << "LoadPart_Total[1] = " << LoadPart_Total[1] << ", NpartTotal[1] = " << this->Npart[1]<< endl;
+      if(nb_of_Files == 1)
+        LoadPart_Total[1] = split_particlesSet(this->Npart[1], UpdatePiece, UpdateNumPieces, ParallelOffset[1]);
+      else
+        LoadPart_Total[1] = split_particlesSet(this->Npart[1], 0, 1, ParallelOffset[1]);
+      errs << "LoadPart_Total[1] = " << LoadPart_Total[1] << ", NpartTotal[1] = " << this->Npart[1]<< endl;
+
+//#define HIERARCHICAL_BIN 1
 #ifdef MULTI_BLOCKS
       vtkPolyData *output = vtkPolyData::New();
-
-      mb->SetBlock(particleSubset, output);
-      //mb->GetMetaData(particleSubset)->Set(vtkCompositeDataSet::NAME(), ParticleTypes[myType]);
-      output->Delete();
+#ifdef HIERARCHICAL_BIN
+      vtkPolyData *output2 = vtkPolyData::New();
+#endif
 #endif
       vtkDoubleArray *cst = vtkDoubleArray::New();
       cst->SetNumberOfComponents(1);
@@ -463,7 +466,7 @@ int vtkLightConeReader::RequestData(
       cst0->SetTuple1(0, this->Time);
       output->GetFieldData()->AddArray(cst0);
       cst0->Delete();
-      
+
       vtkDoubleArray *cst1 = vtkDoubleArray::New();
       cst1->SetNumberOfComponents(1);
       cst1->SetNumberOfTuples(5);
@@ -488,10 +491,10 @@ int vtkLightConeReader::RequestData(
           cells[2 * i + 1] = i;
           }
 #endif
-       output->SetVerts(vertices);
-       vertices->Delete();
-       }
-     else if (this->CellType == CellTypes::PolyVertex)
+        output->SetVerts(vertices);
+        vertices->Delete();
+        }
+      else if (this->CellType == CellTypes::PolyVertex)
         {
         vtkIdList *list = vtkIdList::New();
         list->SetNumberOfIds(LoadPart_Total[1]);
@@ -503,38 +506,38 @@ int vtkLightConeReader::RequestData(
         }
 
       long offset = ParallelOffset[1] * sizeof(float) * 3;
-        size_t size = LoadPart_Total[1] * 3;
+      size_t size = LoadPart_Total[1] * 3;
 
-// allocate array and read coordinates
-        vtkFloatArray *coords = vtkFloatArray::New();
-        coords->SetNumberOfComponents(3);
-        coords->SetNumberOfTuples(LoadPart_Total[1]);
-        std::cerr << " creating coordinates array of size " << LoadPart_Total[1] << " points\n";
-        coords->SetName("coords");
+      // allocate array and read coordinates
+      vtkFloatArray *coords = vtkFloatArray::New();
+      coords->SetNumberOfComponents(3);
+      coords->SetNumberOfTuples(LoadPart_Total[1]);
+      //std::cerr << " creating coordinates array of size " << LoadPart_Total[1] << " points\n";
+      coords->SetName("coords");
 
-        vtkPoints *points = vtkPoints::New();
-        points->SetData(coords);
-        output->SetPoints(points);
-        coords->Delete();
-        points->Delete();
-        ReadFloatDataset("Coordinates", coords->GetPointer(0), offset, size);
-// end of coordinates read
+      vtkPoints *points = vtkPoints::New();
+      points->SetData(coords);
+      output->SetPoints(points);
+          coords->Delete();
+      points->Delete();
+      ReadFloatDataset("Coordinates", coords->GetPointer(0), offset, size);
+      // end of coordinates read
 
-// insert PointData here
+      // insert PointData here
       for(int i = 0 ; i < this->GetNumberOfPointArrays(); i++)
         {
         if(this->GetPointArrayStatus(this->GetPointArrayName(i)))
           {
-            const char *name = &this->GetPointArrayName(i)[0];
+          const char *name = &this->GetPointArrayName(i)[0];
 #ifdef PARALLEL_DEBUG
-      errs << this->LightConeFileNames[particleSubset] << ": reading data array with " << LoadPart_Total[1] << " points\n";
+          errs << this->LightConeFileNames[particleSubset] << ": reading data array with " << LoadPart_Total[1] << " points\n";
 #endif
           if(!strcmp(name, "id"))
             {
             uidata = vtkIdTypeArray::New();
             uidata->SetNumberOfComponents(1);
             uidata->SetNumberOfTuples(LoadPart_Total[1]);
-            std::cerr << " creating id array of size " << LoadPart_Total[1] << " points\n";
+            //std::cerr << " creating id array of size " << LoadPart_Total[1] << " points\n";
             uidata->SetName("id");
             output->GetPointData()->AddArray(uidata);
             output->GetPointData()->SetGlobalIds(uidata);
@@ -549,7 +552,7 @@ int vtkLightConeReader::RequestData(
             data = vtkFloatArray::New();
             data->SetNumberOfComponents(3);
             data->SetNumberOfTuples(LoadPart_Total[1]);
-            std::cerr << " creating velocity array of size " << LoadPart_Total[1] << " points\n";
+            //std::cerr << " creating velocity array of size " << LoadPart_Total[1] << " points\n";
             data->SetName("velocity");
             output->GetPointData()->AddArray(data);
             data->Delete();
@@ -560,12 +563,55 @@ int vtkLightConeReader::RequestData(
             }
           }
         }
-// end of PointData read
-  this->CloseFile(this->LightConeFileNames[particleSubset].c_str());
-  #ifdef PARALLEL_DEBUG
-      errs << "\n";
+      // end of PointData read
+      this->CloseFile(this->LightConeFileNames[particleSubset].c_str());
+
+#ifdef MULTI_BLOCKS
+#ifdef HIERARCHICAL_BIN
+      double bounds[6];
+      points->GetBounds(bounds);
+      vtkHierarchicalBinningFilter *hBin = vtkHierarchicalBinningFilter::New();
+      hBin->SetInputData(output);
+      //hBin->AutomaticOn();
+      hBin->AutomaticOff();
+      hBin->SetDivisions(2,2,2);
+      hBin->SetBounds(bounds);
+      hBin->Update();
+
+      vtkExtractHierarchicalBins *extBin = vtkExtractHierarchicalBins::New();
+      extBin->SetInputConnection(hBin->GetOutputPort());
+      extBin->SetBinningFilter(hBin);
+      extBin->SetLevel(0);
+      int binNum = -1;
+      //extBin->SetBin(binNum);
+      extBin->Update();
+
+      int nnodes = extBin->GetOutput()->GetNumberOfPoints();
+      vtkIdList *ptIds = vtkIdList::New();
+      ptIds->SetNumberOfIds(nnodes);
+
+      for(auto a=0; a < nnodes; a++)
+        ptIds->SetId(a, a);
+      output2->ShallowCopy(extBin->GetOutput());
+      output2->Allocate(1);
+      output2->InsertNextCell(VTK_POLY_VERTEX , ptIds);
+ 
+      ptIds->Delete();
+      extBin->Delete();
+      hBin->Delete();
+      // if using top hierchical bin, use output2 and get rid of output which was temporary
+      // otherwise use output
+      mb->SetBlock(particleSubset, output2);
+      output2->Delete();
+#else
+      mb->SetBlock(particleSubset, output);
 #endif
-    }
+      output->Delete();
+#endif
+      }
+#ifdef PARALLEL_DEBUG
+    errs << "\n";
+#endif
     }
 #ifdef PARALLEL_DEBUG
   errs.close();
