@@ -124,8 +124,8 @@
       </SubProxy>
 
       <Hints>
-        <ReaderFactory extensions="_cdm"
-                       file_description="LightCone files" />
+        <ReaderFactory extensions="*" file_description="LightCone files" />
+	<RepresentationType view="RenderView" type="Points" />
       </Hints>
       <!-- End SeriesReader -->
     </SourceProxy>
