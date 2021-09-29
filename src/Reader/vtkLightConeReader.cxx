@@ -51,6 +51,7 @@ vtkLightConeReader::vtkLightConeReader()
   this->SetNumberOfInputPorts(0);
   this->NumFiles                 = 0;
   this->DistributedSnapshot      = true;
+  this->DirectoryName            = nullptr;
   this->FileName                 = nullptr;
   this->fp                       = nullptr;
   this->TimeStep                 = 0;
@@ -79,10 +80,12 @@ vtkLightConeReader::vtkLightConeReader()
 //----------------------------------------------------------------------------
 vtkLightConeReader::~vtkLightConeReader()
 {
-  delete [] this->FileName;
+  if(this->FileName)
+    free(this->FileName);
   this->PointDataArraySelection->Delete();
   this->PointDataArraySelection = nullptr;
-
+  if(this->DirectoryName)
+    free(this->DirectoryName);
 #ifdef PARAVIEW_USE_MPI
   this->SetController(NULL);
 #endif
@@ -187,8 +190,8 @@ void vtkLightConeReader::PrintHeader(const char *filename)
   int i;
   std::cout << "header file (local and total # of particles): "          << filename << ": ";
   std::cout << this->Npart[1] << " "  << this->NumPart_Total[1] << std::endl;
-
   /*
+
   std::cout << "this->Npart = ";
   for(i=0; i<6;i++)
     std::cout << this->Npart[i] << ", ";
@@ -259,22 +262,40 @@ int vtkLightConeReader::RequestInformation(
   this->CloseFile(this->FileName);
     
   if(this->NumFiles > 1) // ATTENTION overide for testing on laptop
-    for (vtkIdType i = 0; i < numFiles; i++)
     {
+    int Count=0;
+    std::string fileString = this->FileName; // to search for "time index" preceeding the "_cdm"?
+    std::size_t found = fileString.find_last_of("/\\");
+    std::size_t found2 = fileString.find("_cdm");
+    std::string lastwords = fileString.substr(found+1, found2-found-1);
+
+    size_t last_index = lastwords.find_last_not_of("0123456789"); // points to last char before number
+    std::string TimeStep = lastwords.substr(last_index + 1);
+
+    //std::cout << "Looking for timestep "<< TimeStep << std::endl;
+    for (vtkIdType i = 0; i < numFiles; i++)
+      {
       if (strcmp(dir->GetFile(i), ".") == 0 ||
           strcmp(dir->GetFile(i), "..") == 0)
       {
         continue;
       }
 
-      std::string fileString = this->DirectoryName;
-      fileString += "/";
-      fileString += dir->GetFile(i);
+      fileString = dir->GetFile(i);
 
       if(fileString.find("_cdm") != std::string::npos)
-        {
-        this->LightConeFileNames.push_back(fileString);
+        { // should look only in the file name without it full path to avoid catching "snx3000"
+        if(fileString.find(TimeStep) != std::string::npos)
+          {
+	  std::string fullFileName = this->DirectoryName;
+	  fullFileName += "/";
+          this->LightConeFileNames.push_back(fullFileName + fileString); Count++;
+	  }
         }
+      }
+    // verify we added as many files as what was advertized inside header
+    if( Count != this->NumFiles)
+      std::cerr << "did find " << Count << " files, but header said there should be " << this->NumFiles << std::endl;
     }
   else
     this->LightConeFileNames.push_back(this->FileName);
@@ -384,7 +405,7 @@ int vtkLightConeReader::RequestData(
   UpdateNumPieces = outInfo->Get(vtkStreamingDemandDrivenPipeline::UPDATE_NUMBER_OF_PIECES());
 #endif
 
-#define PARALLEL_DEBUG 1
+//#define PARALLEL_DEBUG 1
 #ifdef PARALLEL_DEBUG
   std::ostringstream fname;
   fname << "/scratch/snx3000/jfavre/out." << UpdatePiece << ".txt" << ends;
@@ -403,7 +424,7 @@ int vtkLightConeReader::RequestData(
   int nb_of_Files = this->LightConeFileNames.size();
   if(this->DistributedSnapshot)
     {
-    if(UpdatePiece == 0)
+    if(UpdatePiece == -1)
       {
       std::cout << ".........dictionnary of LC data files........\n";
       for(auto i=0; i < nb_of_Files; i++)
@@ -441,7 +462,7 @@ int vtkLightConeReader::RequestData(
         LoadPart_Total[1] = split_particlesSet(this->Npart[1], UpdatePiece, UpdateNumPieces, ParallelOffset[1]);
       else
         LoadPart_Total[1] = split_particlesSet(this->Npart[1], 0, 1, ParallelOffset[1]);
-      errs << "LoadPart_Total[1] = " << LoadPart_Total[1] << ", NpartTotal[1] = " << this->Npart[1]<< endl;
+      //errs << "LoadPart_Total[1] = " << LoadPart_Total[1] << ", NpartTotal[1] = " << this->Npart[1]<< endl;
 
 //#define HIERARCHICAL_BIN 1
 #ifdef MULTI_BLOCKS
@@ -572,9 +593,9 @@ int vtkLightConeReader::RequestData(
       points->GetBounds(bounds);
       vtkHierarchicalBinningFilter *hBin = vtkHierarchicalBinningFilter::New();
       hBin->SetInputData(output);
-      //hBin->AutomaticOn();
-      hBin->AutomaticOff();
-      hBin->SetDivisions(2,2,2);
+      hBin->AutomaticOn();
+      //hBin->AutomaticOff();
+      //hBin->SetDivisions(2,2,2);
       hBin->SetBounds(bounds);
       hBin->Update();
 
